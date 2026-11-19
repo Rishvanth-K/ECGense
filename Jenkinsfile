@@ -88,7 +88,7 @@ pipeline {
 
     post {
         success {
-            echo "ECGense build #${env.BUILD_NUMBER} is running. Open it with: kubectl -n ecgense port-forward svc/ecgense 8080:80  ->  http://localhost:8080"
+            echo "ECGense build #${env.BUILD_NUMBER} is running. Open it with: kubectl -n ecgense port-forward svc/ecgense 8081:80  ->  http://localhost:8081"
         }
         failure {
             echo 'Pipeline failed. Check the stage logs above.'

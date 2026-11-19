@@ -30,7 +30,7 @@ python -m webapp.app          # http://localhost:5000
 
 ```bash
 kubectl -n ecgense get pods
-kubectl -n ecgense port-forward svc/ecgense 8080:80   # then open http://localhost:8080
+kubectl -n ecgense port-forward svc/ecgense 8081:80   # then open http://localhost:8081
 ```
 
 Educational project. Not a medical device.
