@@ -1,0 +1,16 @@
+.git
+.venv
+.venv-ci
+data
+tests
+k8s
+__pycache__
+**/__pycache__
+.pytest_cache
+.DS_Store
+*.md
+*.png
+Jenkinsfile
+ecg_classifier.py
+eval_report.py
+generate_mockups.py

@@ -1,0 +1,21 @@
+# Credentials
+.env
+
+# Dataset (large; the tests use samples/sample_beats.csv instead)
+data/
+
+# Model weights: ignore everything except the trained model the app serves
+*.keras
+*.h5
+!ecg_cnn_bilstm.keras
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.venv-ci/
+.venv-web/
+.pytest_cache/
+
+# macOS
+.DS_Store

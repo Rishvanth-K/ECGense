@@ -1,0 +1,5 @@
+# Separate namespace so ECGense never touches the existing PBL3 apps in "default"
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ecgense

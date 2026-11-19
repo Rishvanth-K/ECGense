@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ecgense
+  namespace: ecgense
+  labels:
+    app: ecgense
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: ecgense
+  template:
+    metadata:
+      labels:
+        app: ecgense
+    spec:
+      containers:
+        - name: ecgense
+          # IMAGE_TAG is replaced with the Jenkins build number in the Deploy stage
+          image: ecgense:IMAGE_TAG
+          # The image is loaded into Kind directly (kind load), not pulled from a registry
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              memory: "1536Mi"
+          # Send traffic to a pod only after the model has loaded
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          # Restart the container if it stops responding
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 60
+            periodSeconds: 15

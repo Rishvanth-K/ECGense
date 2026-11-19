@@ -1,0 +1,1 @@
+"""ECGense web application."""

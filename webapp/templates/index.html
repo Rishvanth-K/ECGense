@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ECGense: heartbeat classification</title>
+  <link rel="icon" href="{{ url_for('static', filename='favicon.svg') }}" type="image/svg+xml">
+  <link rel="preload" href="{{ url_for('static', filename='bricolage.woff2') }}" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="top"><div class="wrap">
+    <a class="logo" href="#">
+      <svg viewBox="0 0 38 20" fill="none" aria-hidden="true"><path d="M1 11h9l3-8 4.5 15 4-11 2 4H37" stroke="#c0143c" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      ECGense
+    </a>
+    <nav>
+      <a href="#analyze">Analyze</a>
+      <a href="#model">The model</a>
+      <a href="#classes">Beat classes</a>
+      <a href="#devops">DevOps</a>
+    </nav>
+  </div></header>
+
+  <main>
+    <!-- ===== Hero: the live strip ===== -->
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <h1>Every heartbeat, classified.</h1>
+        <div>
+        <p class="lede">ECGense reads a single beat from an ECG and sorts it into one of five classes,
+          using a CNN–BiLSTM model trained on the MIT-BIH Arrhythmia Database.</p>
+        <div class="hero-actions">
+          <a class="btn" href="#analyze">Analyze a heartbeat</a>
+          <a class="btn line" href="#model">How the model works</a>
+        </div>
+        </div>
+      </div>
+      <div class="strip paper" aria-label="Live classification of sample heartbeats">
+        <canvas id="stripCanvas"></canvas>
+        <div class="readout" aria-live="polite">
+          <div class="what" id="roWhat">Loading sample beats</div>
+          <div class="cls" id="roCls">&nbsp;</div>
+          <div class="conf" id="roConf">&nbsp;</div>
+          <div class="truth" id="roTruth">&nbsp;</div>
+        </div>
+      </div>
+      <div class="wrap"><p class="strip-caption">Real beats from the MIT-BIH test set, classified live by the model on this server.</p></div>
+    </section>
+
+    <!-- ===== Analyze ===== -->
+    <section class="block" id="analyze">
+      <div class="wrap">
+        <h2>Analyze a heartbeat</h2>
+        <p class="intro">Pick one of 20 real beats from the test set, or upload your own as a CSV row or an image of the trace.</p>
+
+        <div class="bench">
+          <div class="picker">
+            <h3>Choose a sample beat</h3>
+            <p class="hint">Four beats from each class. Rows are labelled with the true class.</p>
+            <div id="sampleRows"></div>
+            <div class="picker-actions">
+              <button class="btn line" id="allBtn" type="button">Analyze all 20</button>
+              <label class="btn line" for="csvFile">Upload CSV</label>
+              <input type="file" id="csvFile" accept=".csv,.txt" hidden>
+              <label class="btn line" for="imgFile">Upload ECG image</label>
+              <input type="file" id="imgFile" accept=".png,.jpg,.jpeg" hidden>
+            </div>
+            <p class="upload-note">CSV: one beat per row, 187 values between 0 and 1, plus an optional 188th column with the true class (0–4), as in <code>mitbih_test.csv</code>. Image: one beat as a dark line on a light background.</p>
+            <div class="status busy hidden" id="busy">Analyzing</div>
+            <div class="status err hidden" id="error" role="alert"></div>
+          </div>
+
+          <div class="report" aria-live="polite">
+            <div class="report-head">
+              <div>
+                <div class="cls" id="rCls">No beat yet</div>
+                <div class="sub" id="rSub">Choose a sample or upload a file to see the result.</div>
+              </div>
+              <div class="big-conf hidden" id="rConfBox"><b id="rConf"></b><span>confidence</span></div>
+            </div>
+            <div class="paper">
+              <canvas id="plot"></canvas>
+            </div>
+            <div class="probs" id="probs"></div>
+          </div>
+        </div>
+
+        <div class="batch hidden" id="batch">
+          <h3>All beats</h3>
+          <p class="intro" id="batchSummary" style="margin:0"></p>
+          <div style="overflow-x:auto"><table>
+            <thead><tr><th>Beat</th><th>Prediction</th><th>Confidence</th><th>True class</th></tr></thead>
+            <tbody id="rows"></tbody>
+          </table></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== The model ===== -->
+    <section class="block white" id="model">
+      <div class="wrap">
+        <h2>The model</h2>
+        <p class="intro">As a beat passes through the network, it gets shorter in time and richer in features.
+          Each block below is drawn to scale: height is the number of time steps, width is the number of features.</p>
+        <div class="layers" id="layers"></div>
+        <div class="legend">
+          <span><i style="background:#f8d6ce"></i>Convolution: wave shapes</span>
+          <span><i style="background:#d8def0"></i>Bidirectional LSTM: order in time</span>
+          <span><i style="background:var(--ink)"></i>Output: 5 class probabilities</span>
+        </div>
+        <div class="explain">
+          <div><h3>Shape</h3><p>Three Conv1D layers (64, 128 and 128 filters) learn local patterns such as the width and height of the QRS spike. Each is followed by batch normalisation and pooling.</p></div>
+          <div><h3>Rhythm</h3><p>A Bidirectional LSTM with 64 units in each direction reads those features forwards and backwards, so it sees what comes before and after every point in the beat.</p></div>
+          <div><h3>Decision</h3><p>Global average pooling, a 64-unit dense layer and dropout lead to a softmax over the five classes. The highest probability is the prediction.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== Classes ===== -->
+    <section class="block" id="classes">
+      <div class="wrap">
+        <h2>Beat classes</h2>
+        <p class="intro">MIT-BIH beat annotations are grouped into five classes following the AAMI standard. Each example on the right is a real beat from the test set.</p>
+        <div class="classes" id="classList"></div>
+      </div>
+    </section>
+
+    <!-- ===== DevOps ===== -->
+    <section class="block white" id="devops">
+      <div class="wrap">
+        <h2>How ECGense is delivered</h2>
+        <p class="intro">Every change goes through the same automated path, from a commit on GitHub to new pods running in Kubernetes.
+          Jenkins runs it; nobody copies files or restarts servers by hand.</p>
+
+        <ol class="pipeline">
+          <li><b>Developer</b><span>Changes the code</span></li>
+          <li><b>Git</b><span>Commits the change</span></li>
+          <li><b>GitHub</b><span>Stores the repository</span></li>
+          <li><b>Jenkins</b><span>Notices the new commit</span></li>
+          <li><b>Test</b><span>pytest with the real model</span></li>
+          <li><b>Docker build</b><span>Packages the app</span></li>
+          <li><b>Kubernetes</b><span>Rolls out new pods on Kind</span></li>
+          <li class="live"><b>ECGense</b><span>Running and verified</span></li>
+        </ol>
+
+        <div class="deploy-panel">
+          <div>
+            <h3>Deployment status</h3>
+            <p id="deployNote" class="muted-text">Reading deployment details from the server.</p>
+          </div>
+          <dl class="facts">
+            <div><dt>Jenkins build</dt><dd id="dBuild">–</dd></div>
+            <div><dt>Git commit</dt><dd id="dCommit">–</dd></div>
+            <div><dt>Running on</dt><dd id="dPod">–</dd></div>
+            <div><dt>Model</dt><dd id="dModel">–</dd></div>
+          </dl>
+        </div>
+
+        <div class="tools">
+          <article class="tool">
+            <h3>Git and GitHub</h3>
+            <p>All code, the trained model, the tests and the pipeline itself live in one Git repository on GitHub.
+              The large MIT-BIH dataset stays out of Git; the tests use 20 real beats saved in <code>samples/</code>.</p>
+          </article>
+
+          <article class="tool">
+            <h3>Jenkins</h3>
+            <p>Checks GitHub every two minutes. When it finds a new commit it runs the five stages in the <code>Jenkinsfile</code>,
+              stopping at the first one that fails, so a broken change never reaches the cluster.</p>
+            <ol class="stages">
+              <li><b>Checkout</b> gets the latest code from GitHub</li>
+              <li><b>Test</b> runs 8 pytest tests against the real model</li>
+              <li><b>Build Docker Image</b> tags the image with the build number</li>
+              <li><b>Deploy to Kubernetes</b> loads the image into Kind and applies the YAML files</li>
+              <li><b>Verify Deployment</b> waits for the rollout and calls <code>/health</code></li>
+            </ol>
+          </article>
+
+          <article class="tool">
+            <h3>Docker</h3>
+            <p>Packages Python 3.12, TensorFlow, Flask and the trained model into one image, so it runs the same way on any machine.
+              The app runs as a normal user, not root, behind the gunicorn web server.</p>
+            <details><summary>Show the Dockerfile</summary>
+<pre>FROM python:3.12-slim
+WORKDIR /app
+COPY webapp/requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+COPY webapp/ webapp/
+COPY ecg_cnn_bilstm.keras .
+COPY samples/ samples/
+ARG BUILD_NUMBER=dev
+ARG GIT_COMMIT=local
+ENV BUILD_NUMBER=${BUILD_NUMBER} GIT_COMMIT=${GIT_COMMIT}
+RUN useradd --create-home ecgense
+USER ecgense
+EXPOSE 5000
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1",
+     "--threads", "4", "--timeout", "120", "webapp.app:app"]</pre>
+            </details>
+          </article>
+
+          <article class="tool">
+            <h3>Kubernetes on Kind</h3>
+            <p>Runs two copies (pods) of ECGense in their own <code>ecgense</code> namespace on a local Kind cluster.
+              A pod only receives traffic after <code>/health</code> confirms the model has loaded, and Kubernetes restarts it if it stops responding.</p>
+            <details><summary>Show the Deployment</summary>
+<pre>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ecgense
+  namespace: ecgense
+spec:
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: ecgense
+          image: ecgense:IMAGE_TAG   # Jenkins build number
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5000
+          readinessProbe:
+            httpGet: { path: /health, port: 5000 }
+          livenessProbe:
+            httpGet: { path: /health, port: 5000 }</pre>
+            </details>
+          </article>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer><div class="wrap">
+    <div class="deploy">
+      <span>Build <b>#{{ info.build_number }}</b></span>
+      <span>Commit <b>{{ info.git_commit }}</b></span>
+      <span>Served by <b>{{ info.pod }}</b></span>
+    </div>
+    <span>A student project for learning. Not for medical diagnosis.</span>
+  </div></footer>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
